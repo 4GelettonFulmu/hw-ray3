@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Urban Steps Challenge</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- Shoe Selection Overlay -->
+        <div id="shoe-selection" class="overlay">
+            <div class="selection-panel">
+                <h1>The Urban Steps Challenge</h1>
+                <p class="subtitle">Choose Your Footwear</p>
+
+                <div class="shoe-options">
+                    <div class="shoe-option" id="option-sneaker">
+                        <div class="shoe-image sneaker-img"></div>
+                        <h3>The Chunky Sneaker</h3>
+                        <p class="description">High-Grip Rubber Sole<br>Wide Base<br>Stable</p>
+                        <button onclick="game.selectShoe('sneaker')">Choose Sneakers</button>
+                    </div>
+
+                    <div class="shoe-option" id="option-heel">
+                        <div class="shoe-image heel-img"></div>
+                        <h3>The Stiletto Heel</h3>
+                        <p class="description">Glossy Patent Leather<br>Needle-Thin Point<br>Unstable</p>
+                        <button onclick="game.selectShoe('heel')">Choose Heels</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Over Overlay -->
+        <div id="game-over" class="overlay hidden">
+            <div class="game-over-panel">
+                <h1 id="result-title">Painful Fall!</h1>
+                <p id="result-message">Your ankle gave way...</p>
+                <button onclick="game.restart()">Try Again</button>
+            </div>
+        </div>
+
+        <!-- Win Overlay -->
+        <div id="game-win" class="overlay hidden">
+            <div class="game-over-panel win">
+                <h1>Victory!</h1>
+                <p>You made it across the street!</p>
+                <button onclick="game.restart()">Play Again</button>
+            </div>
+        </div>
+
+        <!-- Instructions -->
+        <div id="instructions" class="instructions hidden">
+            <p>Click and drag your feet to walk across the street!</p>
+            <p>Keep your balance and reach the finish line.</p>
+        </div>
+    </div>
+
+    <!-- Matter.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
