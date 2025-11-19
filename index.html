@@ -4,63 +4,839 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The Urban Steps Challenge</title>
-    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background: #1a1a1a;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Status Bar */
+        .status-bar {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            font-size: 18px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px 20px;
+            border-radius: 8px;
+            backdrop-filter: blur(5px);
+            z-index: 5;
+        }
+
+        .status-bar span {
+            color: #ffa500;
+            font-weight: bold;
+        }
+
+        /* Overlays */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            transition: opacity 0.3s ease;
+        }
+
+        .overlay.hidden {
+            display: none;
+        }
+
+        .panel {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            padding: 50px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9);
+            text-align: center;
+            max-width: 900px;
+            border: 2px solid #444;
+        }
+
+        .panel h1 {
+            color: #fff;
+            font-size: 48px;
+            margin-bottom: 10px;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.8);
+            letter-spacing: 2px;
+        }
+
+        .panel .subtitle {
+            color: #aaa;
+            font-size: 18px;
+            margin-bottom: 40px;
+            font-style: italic;
+            border-bottom: 1px solid #444;
+            padding-bottom: 20px;
+        }
+
+        .shoe-options {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+        }
+
+        .shoe-option {
+            background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+            padding: 30px;
+            border-radius: 15px;
+            width: 350px;
+            border: 3px solid #333;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .shoe-option:hover {
+            border-color: #ffa500;
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(255, 165, 0, 0.3);
+        }
+
+        .shoe-icon {
+            font-size: 80px;
+            margin: 20px 0;
+        }
+
+        .shoe-option h3 {
+            color: #fff;
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+
+        .shoe-option .description {
+            color: #bbb;
+            font-size: 16px;
+            line-height: 1.8;
+            margin-bottom: 20px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #ffa500 0%, #ff8c00 100%);
+            color: #fff;
+            border: none;
+            padding: 15px 40px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(255, 165, 0, 0.4);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        button:hover {
+            background: linear-gradient(135deg, #ff8c00 0%, #ff7000 100%);
+            box-shadow: 0 7px 20px rgba(255, 165, 0, 0.6);
+            transform: translateY(-2px);
+        }
+
+        /* Game Over Panel */
+        .game-over-panel {
+            background: linear-gradient(135deg, #8B0000 0%, #DC143C 100%);
+            padding: 50px 60px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9);
+            text-align: center;
+            border: 3px solid #600;
+            animation: shake 0.5s ease;
+        }
+
+        .game-over-panel.win {
+            background: linear-gradient(135deg, #228B22 0%, #32CD32 100%);
+            border-color: #1a661a;
+            animation: pulse 0.5s ease;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px) rotate(-2deg); }
+            75% { transform: translateX(10px) rotate(2deg); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .game-over-panel h1 {
+            color: #fff;
+            font-size: 56px;
+            margin-bottom: 20px;
+            text-shadow: 4px 4px 8px rgba(0, 0, 0, 0.9);
+        }
+
+        .game-over-panel p {
+            color: #fff;
+            font-size: 24px;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        .instructions {
+            position: absolute;
+            top: 80px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            padding: 15px 20px;
+            border-radius: 10px;
+            z-index: 5;
+            backdrop-filter: blur(5px);
+        }
+
+        .instructions.hidden {
+            display: none;
+        }
+
+        .instructions p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+
+        @media (max-width: 900px) {
+            .shoe-options {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
 </head>
 <body>
-    <div id="game-container">
-        <canvas id="gameCanvas"></canvas>
 
-        <!-- Shoe Selection Overlay -->
-        <div id="shoe-selection" class="overlay">
-            <div class="selection-panel">
-                <h1>The Urban Steps Challenge</h1>
-                <p class="subtitle">Choose Your Footwear</p>
+<div id="game-container">
+    <!-- Status Bar -->
+    <div class="status-bar">
+        Distance: <span id="distance-display">0</span>m / <span id="target-distance">150</span>m
+    </div>
 
-                <div class="shoe-options">
-                    <div class="shoe-option" id="option-sneaker">
-                        <div class="shoe-image sneaker-img"></div>
-                        <h3>The Chunky Sneaker</h3>
-                        <p class="description">High-Grip Rubber Sole<br>Wide Base<br>Stable</p>
-                        <button onclick="game.selectShoe('sneaker')">Choose Sneakers</button>
+    <!-- Instructions -->
+    <div id="instructions" class="instructions hidden">
+        <p><strong>🖱️ Click and drag your feet</strong> to move them forward</p>
+        <p>⚠️ Keep ankles off the ground and maintain balance!</p>
+    </div>
+
+    <!-- Selection Screen -->
+    <div id="start-screen" class="overlay">
+        <div class="panel">
+            <h1>THE URBAN STEPS CHALLENGE</h1>
+            <p class="subtitle">Choose Your Footwear Wisely</p>
+
+            <div class="shoe-options">
+                <div class="shoe-option" onclick="startGame('sneaker')">
+                    <div class="shoe-icon">👟</div>
+                    <h3>The Chunky Sneaker</h3>
+                    <div class="description">
+                        High-Grip Rubber Sole<br>
+                        Wide Base<br>
+                        <strong style="color: #4CAF50">Stability: 90%</strong>
                     </div>
+                    <button>Choose Sneakers</button>
+                </div>
 
-                    <div class="shoe-option" id="option-heel">
-                        <div class="shoe-image heel-img"></div>
-                        <h3>The Stiletto Heel</h3>
-                        <p class="description">Glossy Patent Leather<br>Needle-Thin Point<br>Unstable</p>
-                        <button onclick="game.selectShoe('heel')">Choose Heels</button>
+                <div class="shoe-option" onclick="startGame('heel')">
+                    <div class="shoe-icon">👠</div>
+                    <h3>The Stiletto Heel</h3>
+                    <div class="description">
+                        Glossy Patent Leather<br>
+                        Needle-Thin Point<br>
+                        <strong style="color: #f44336">Stability: 10%</strong>
                     </div>
+                    <button>Choose Heels</button>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Game Over Overlay -->
-        <div id="game-over" class="overlay hidden">
-            <div class="game-over-panel">
-                <h1 id="result-title">Painful Fall!</h1>
-                <p id="result-message">Your ankle gave way...</p>
-                <button onclick="game.restart()">Try Again</button>
-            </div>
-        </div>
-
-        <!-- Win Overlay -->
-        <div id="game-win" class="overlay hidden">
-            <div class="game-over-panel win">
-                <h1>Victory!</h1>
-                <p>You made it across the street!</p>
-                <button onclick="game.restart()">Play Again</button>
-            </div>
-        </div>
-
-        <!-- Instructions -->
-        <div id="instructions" class="instructions hidden">
-            <p>Click and drag your feet to walk across the street!</p>
-            <p>Keep your balance and reach the finish line.</p>
+    <!-- Game Over -->
+    <div id="fail-screen" class="overlay hidden">
+        <div class="game-over-panel">
+            <h1 id="fail-title">PAINFUL FALL!</h1>
+            <p id="fail-message">Your ankle gave way...</p>
+            <p style="font-size: 18px; opacity: 0.8;">Distance: <span id="fail-distance">0</span>m</p>
+            <button onclick="restart()">Try Again</button>
         </div>
     </div>
 
-    <!-- Matter.js CDN -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
-    <script src="game.js"></script>
+    <!-- Win Screen -->
+    <div id="win-screen" class="overlay hidden">
+        <div class="game-over-panel win">
+            <h1>VICTORY!</h1>
+            <p>You made it across the street!</p>
+            <p style="font-size: 18px; opacity: 0.8;">Footwear: <span id="win-shoe">Sneakers</span></p>
+            <button onclick="restart()">Walk Again</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Matter.js aliases
+    const Engine = Matter.Engine;
+    const Render = Matter.Render;
+    const Runner = Matter.Runner;
+    const Bodies = Matter.Bodies;
+    const Body = Matter.Body;
+    const Composite = Matter.Composite;
+    const Constraint = Matter.Constraint;
+    const Mouse = Matter.Mouse;
+    const MouseConstraint = Matter.MouseConstraint;
+    const Events = Matter.Events;
+
+    // Game state
+    let engine, render, runner, mouseConstraint;
+    let gameActive = false;
+    let selectedShoe = null;
+    let legs = [];
+    let ground;
+    let groundY;
+    let finishX;
+    let startX = 150;
+
+    function startGame(shoeType) {
+        selectedShoe = shoeType;
+        gameActive = true;
+
+        // Hide selection screen
+        document.getElementById('start-screen').classList.add('hidden');
+        document.getElementById('instructions').classList.remove('hidden');
+
+        // Setup physics
+        setupPhysics();
+        createLegs();
+
+        // Update target distance
+        finishX = window.innerWidth - 150;
+        document.getElementById('target-distance').textContent = Math.floor((finishX - startX) / 10);
+    }
+
+    function setupPhysics() {
+        const container = document.getElementById('game-container');
+        groundY = window.innerHeight - 100;
+
+        // Clean up existing
+        if (engine) {
+            Matter.World.clear(engine.world);
+            Matter.Engine.clear(engine);
+        }
+        if (render && render.canvas) {
+            render.canvas.remove();
+        }
+        if (runner) {
+            Matter.Runner.stop(runner);
+        }
+
+        // Create engine
+        engine = Engine.create({
+            gravity: { x: 0, y: 1.5 }
+        });
+
+        // Create renderer with custom drawing
+        render = Render.create({
+            element: container,
+            engine: engine,
+            options: {
+                width: window.innerWidth,
+                height: window.innerHeight,
+                wireframes: false,
+                background: 'transparent'
+            }
+        });
+
+        // Ground
+        ground = Bodies.rectangle(window.innerWidth / 2, groundY + 50, window.innerWidth * 2, 100, {
+            isStatic: true,
+            friction: 0.8,
+            label: 'ground'
+        });
+        Composite.add(engine.world, ground);
+
+        // Finish line sensor
+        const finishLine = Bodies.rectangle(finishX, groundY - 100, 30, 300, {
+            isStatic: true,
+            isSensor: true,
+            label: 'finish',
+            render: { fillStyle: 'transparent' }
+        });
+        Composite.add(engine.world, finishLine);
+
+        // Mouse control
+        const mouse = Mouse.create(render.canvas);
+        mouseConstraint = MouseConstraint.create(engine, {
+            mouse: mouse,
+            constraint: {
+                stiffness: 0.2,
+                damping: 0.05,
+                render: { visible: false }
+            }
+        });
+        Composite.add(engine.world, mouseConstraint);
+
+        // Custom rendering
+        Events.on(render, 'afterRender', drawScene);
+
+        // Update loop
+        Events.on(engine, 'afterUpdate', checkGameConditions);
+
+        // Start
+        Render.run(render);
+        runner = Runner.create();
+        Runner.run(runner, engine);
+    }
+
+    function createLegs() {
+        legs = [];
+        createLeg(startX, 'left');
+        createLeg(startX + 80, 'right');
+    }
+
+    function createLeg(x, side) {
+        const legGroup = Body.nextGroup(true);
+
+        // Shoe properties
+        let shoeWidth, shoeHeight, shoeFriction, shoeDensity, shoeRestitution;
+
+        if (selectedShoe === 'sneaker') {
+            shoeWidth = 90;
+            shoeHeight = 35;
+            shoeFriction = 0.9;
+            shoeDensity = 0.008;
+            shoeRestitution = 0.1;
+        } else { // heel
+            shoeWidth = 70;
+            shoeHeight = 90;
+            shoeFriction = 0.2;
+            shoeDensity = 0.015;
+            shoeRestitution = 0.4;
+        }
+
+        // Create foot/shoe
+        const foot = Bodies.rectangle(x, groundY - 50, shoeWidth, shoeHeight, {
+            friction: shoeFriction,
+            density: shoeDensity,
+            restitution: shoeRestitution,
+            collisionFilter: { group: legGroup },
+            label: `${side}-foot`,
+            chamfer: { radius: 5 }
+        });
+
+        // Create ankle
+        const ankle = Bodies.circle(x, groundY - 80, 12, {
+            friction: 0.5,
+            density: 0.005,
+            collisionFilter: { group: legGroup },
+            label: `${side}-ankle`
+        });
+
+        // Create calf
+        const calf = Bodies.rectangle(x, groundY - 150, 35, 130, {
+            friction: 0.5,
+            density: 0.006,
+            collisionFilter: { group: legGroup },
+            label: `${side}-calf`,
+            chamfer: { radius: 8 }
+        });
+
+        // Hip anchor (keeps leg upright tendency)
+        const hipAnchor = Bodies.circle(x, groundY - 240, 8, {
+            isStatic: true,
+            isSensor: true,
+            render: { visible: false }
+        });
+
+        // Constraints
+        const ankleToFoot = Constraint.create({
+            bodyA: ankle,
+            bodyB: foot,
+            length: selectedShoe === 'heel' ? 50 : 35,
+            stiffness: 0.8,
+            damping: 0.1
+        });
+
+        const calfToAnkle = Constraint.create({
+            bodyA: calf,
+            bodyB: ankle,
+            length: 70,
+            stiffness: 0.7,
+            damping: 0.1
+        });
+
+        const hipToCalf = Constraint.create({
+            bodyA: hipAnchor,
+            bodyB: calf,
+            pointB: { x: 0, y: -60 },
+            stiffness: 0.005,
+            damping: 0.05,
+            length: 0
+        });
+
+        // Add to world
+        Composite.add(engine.world, [foot, ankle, calf, hipAnchor, ankleToFoot, calfToAnkle, hipToCalf]);
+
+        legs.push({ foot, ankle, calf, hipAnchor, side });
+    }
+
+    function checkGameConditions() {
+        if (!gameActive) return;
+
+        // Update distance display
+        const maxX = Math.max(...legs.map(leg => leg.foot.position.x));
+        const distance = Math.floor((maxX - startX) / 10);
+        document.getElementById('distance-display').textContent = Math.max(0, distance);
+
+        // Update hip anchors to follow feet horizontally
+        legs.forEach(leg => {
+            Body.setPosition(leg.hipAnchor, {
+                x: leg.foot.position.x,
+                y: leg.hipAnchor.position.y
+            });
+        });
+
+        // Check fail conditions
+        for (let leg of legs) {
+            // Ankle touches ground
+            if (leg.ankle.position.y > groundY - 20) {
+                triggerFall('ankle', distance);
+                return;
+            }
+
+            // Leg too horizontal
+            const calfAngle = Math.abs(leg.calf.angle);
+            if (calfAngle > Math.PI / 2.2) {
+                triggerFall('collapse', distance);
+                return;
+            }
+
+            // Heel specific: foot tips over
+            if (selectedShoe === 'heel') {
+                const footAngle = Math.abs(leg.foot.angle);
+                if (footAngle > Math.PI / 3.5) {
+                    triggerFall('twisted', distance);
+                    return;
+                }
+            }
+        }
+
+        // Check win condition
+        if (legs.every(leg => leg.foot.position.x > finishX)) {
+            triggerWin();
+        }
+    }
+
+    function triggerFall(reason, distance) {
+        if (!gameActive) return;
+        gameActive = false;
+
+        // Flash effect
+        const canvas = render.canvas;
+        const ctx = render.context;
+        ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Update UI
+        setTimeout(() => {
+            document.getElementById('instructions').classList.add('hidden');
+            const failScreen = document.getElementById('fail-screen');
+            const failTitle = document.getElementById('fail-title');
+            const failMessage = document.getElementById('fail-message');
+
+            if (reason === 'ankle') {
+                failTitle.textContent = 'ANKLE DOWN!';
+                failMessage.textContent = 'Your ankle touched the asphalt!';
+            } else if (reason === 'collapse') {
+                failTitle.textContent = 'LOST BALANCE!';
+                failMessage.textContent = 'Your leg collapsed!';
+            } else if (reason === 'twisted') {
+                failTitle.textContent = 'TWISTED ANKLE!';
+                failMessage.textContent = 'The stiletto heel gave way!';
+            }
+
+            document.getElementById('fail-distance').textContent = distance;
+            failScreen.classList.remove('hidden');
+        }, 300);
+    }
+
+    function triggerWin() {
+        if (!gameActive) return;
+        gameActive = false;
+
+        document.getElementById('instructions').classList.add('hidden');
+        document.getElementById('win-shoe').textContent =
+            selectedShoe === 'sneaker' ? 'Chunky Sneakers' : 'Stiletto Heels';
+        document.getElementById('win-screen').classList.remove('hidden');
+    }
+
+    function restart() {
+        // Clean up
+        gameActive = false;
+        legs = [];
+
+        if (runner) Runner.stop(runner);
+        if (engine) {
+            Matter.World.clear(engine.world);
+            Matter.Engine.clear(engine);
+        }
+        if (render && render.canvas) {
+            render.canvas.remove();
+        }
+
+        // Reset UI
+        document.getElementById('start-screen').classList.remove('hidden');
+        document.getElementById('fail-screen').classList.add('hidden');
+        document.getElementById('win-screen').classList.add('hidden');
+        document.getElementById('instructions').classList.add('hidden');
+        document.getElementById('distance-display').textContent = '0';
+    }
+
+    // Custom rendering function
+    function drawScene() {
+        const ctx = render.context;
+        const canvas = render.canvas;
+        const width = canvas.width;
+        const height = canvas.height;
+
+        // Background sky gradient
+        ctx.globalCompositeOperation = 'destination-over';
+        const skyGrad = ctx.createLinearGradient(0, 0, 0, height);
+        skyGrad.addColorStop(0, '#87CEEB');
+        skyGrad.addColorStop(0.5, '#B0D4E3');
+        skyGrad.addColorStop(1, '#5A5A5A');
+        ctx.fillStyle = skyGrad;
+        ctx.fillRect(0, 0, width, height);
+        ctx.globalCompositeOperation = 'source-over';
+
+        // Asphalt road
+        const roadGrad = ctx.createLinearGradient(0, groundY - 50, 0, height);
+        roadGrad.addColorStop(0, '#4a4a4a');
+        roadGrad.addColorStop(0.5, '#3a3a3a');
+        roadGrad.addColorStop(1, '#2a2a2a');
+        ctx.fillStyle = roadGrad;
+        ctx.fillRect(0, groundY - 50, width, height);
+
+        // Road texture (noise)
+        ctx.fillStyle = 'rgba(60, 60, 60, 0.3)';
+        for (let i = 0; i < 150; i++) {
+            const x = Math.random() * width;
+            const y = groundY + Math.random() * 100;
+            const size = Math.random() * 3;
+            ctx.fillRect(x, y, size, size);
+        }
+
+        // Road markings
+        ctx.strokeStyle = 'rgba(220, 220, 220, 0.5)';
+        ctx.lineWidth = 4;
+        ctx.setLineDash([30, 20]);
+        ctx.beginPath();
+        ctx.moveTo(0, groundY + 30);
+        ctx.lineTo(width, groundY + 30);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Oil stains
+        ctx.fillStyle = 'rgba(20, 20, 30, 0.4)';
+        ctx.beginPath();
+        ctx.ellipse(400, groundY + 20, 50, 30, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Finish line
+        ctx.fillStyle = 'rgba(0, 255, 100, 0.2)';
+        ctx.fillRect(finishX - 20, 0, 60, height);
+
+        ctx.fillStyle = '#000';
+        for (let y = 0; y < height; y += 40) {
+            ctx.fillRect(finishX - 10, y, 30, 20);
+        }
+
+        ctx.fillStyle = '#0f0';
+        ctx.font = 'bold 24px Arial';
+        ctx.textShadow = '2px 2px 4px rgba(0,0,0,0.8)';
+        ctx.fillText('FINISH', finishX - 30, groundY - 60);
+
+        // Draw legs
+        legs.forEach(leg => drawLeg(ctx, leg));
+    }
+
+    function drawLeg(ctx, leg) {
+        const { foot, ankle, calf } = leg;
+
+        // Shadow
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.filter = 'blur(12px)';
+        ctx.beginPath();
+        ctx.ellipse(foot.position.x, groundY, 45, 15, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.filter = 'none';
+        ctx.restore();
+
+        // Draw calf (skin)
+        ctx.save();
+        ctx.translate(calf.position.x, calf.position.y);
+        ctx.rotate(calf.angle);
+
+        const skinGrad = ctx.createLinearGradient(-17, 0, 17, 0);
+        skinGrad.addColorStop(0, '#C8A882');
+        skinGrad.addColorStop(0.5, '#E8C4A0');
+        skinGrad.addColorStop(1, '#C8A882');
+        ctx.fillStyle = skinGrad;
+
+        ctx.beginPath();
+        ctx.roundRect(-17, -65, 35, 130, 8);
+        ctx.fill();
+
+        // Highlight
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.fillRect(-12, -60, 8, 120);
+        ctx.restore();
+
+        // Draw ankle
+        ctx.save();
+        ctx.translate(ankle.position.x, ankle.position.y);
+        ctx.fillStyle = '#D4A574';
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetX = 3;
+        ctx.shadowOffsetY = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // Draw shoe
+        ctx.save();
+        ctx.translate(foot.position.x, foot.position.y);
+        ctx.rotate(foot.angle);
+
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+        ctx.shadowBlur = 15;
+        ctx.shadowOffsetX = 5;
+        ctx.shadowOffsetY = 10;
+
+        if (selectedShoe === 'sneaker') {
+            drawSneaker(ctx);
+        } else {
+            drawHeel(ctx);
+        }
+
+        ctx.restore();
+    }
+
+    function drawSneaker(ctx) {
+        // Sole
+        const soleGrad = ctx.createLinearGradient(-45, 10, -45, 20);
+        soleGrad.addColorStop(0, '#2a2a2a');
+        soleGrad.addColorStop(1, '#1a1a1a');
+        ctx.fillStyle = soleGrad;
+        ctx.fillRect(-45, 10, 90, 10);
+
+        // Main body
+        const bodyGrad = ctx.createLinearGradient(-45, -17, -45, 17);
+        bodyGrad.addColorStop(0, '#555');
+        bodyGrad.addColorStop(0.5, '#333');
+        bodyGrad.addColorStop(1, '#222');
+        ctx.fillStyle = bodyGrad;
+
+        ctx.beginPath();
+        ctx.moveTo(-45, -15);
+        ctx.lineTo(40, -15);
+        ctx.quadraticCurveTo(45, -15, 45, -8);
+        ctx.lineTo(45, 12);
+        ctx.lineTo(-45, 12);
+        ctx.closePath();
+        ctx.fill();
+
+        // Highlight
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.beginPath();
+        ctx.ellipse(-15, -5, 20, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Stripe
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(-25, -3);
+        ctx.quadraticCurveTo(0, -8, 20, 2);
+        ctx.stroke();
+    }
+
+    function drawHeel(ctx) {
+        // Heel spike
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath();
+        ctx.moveTo(-12, 20);
+        ctx.lineTo(-8, 45);
+        ctx.lineTo(8, 45);
+        ctx.lineTo(12, 20);
+        ctx.closePath();
+        ctx.fill();
+
+        // Shoe body
+        const heelGrad = ctx.createLinearGradient(-35, -45, -35, 45);
+        heelGrad.addColorStop(0, '#FF1493');
+        heelGrad.addColorStop(0.4, '#DC143C');
+        heelGrad.addColorStop(1, '#8B0000');
+        ctx.fillStyle = heelGrad;
+
+        ctx.beginPath();
+        ctx.moveTo(-35, -35);
+        ctx.lineTo(30, -40);
+        ctx.quadraticCurveTo(35, -40, 35, -30);
+        ctx.lineTo(35, -15);
+        ctx.lineTo(12, 20);
+        ctx.lineTo(-12, 20);
+        ctx.lineTo(-35, -15);
+        ctx.closePath();
+        ctx.fill();
+
+        // Glossy highlights
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.beginPath();
+        ctx.ellipse(-10, -25, 18, 10, -0.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.beginPath();
+        ctx.ellipse(10, -20, 12, 7, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Polyfill for roundRect if needed
+    if (!CanvasRenderingContext2D.prototype.roundRect) {
+        CanvasRenderingContext2D.prototype.roundRect = function(x, y, width, height, radius) {
+            this.moveTo(x + radius, y);
+            this.lineTo(x + width - radius, y);
+            this.quadraticCurveTo(x + width, y, x + width, y + radius);
+            this.lineTo(x + width, y + height - radius);
+            this.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            this.lineTo(x + radius, y + height);
+            this.quadraticCurveTo(x, y + height, x, y + height - radius);
+            this.lineTo(x, y + radius);
+            this.quadraticCurveTo(x, y, x + radius, y);
+            this.closePath();
+        };
+    }
+</script>
 </body>
 </html>
