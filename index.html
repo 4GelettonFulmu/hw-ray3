@@ -314,6 +314,13 @@
     let finishX;
     let startX = 150;
 
+    // Camera system for close-up view
+    let camera = {
+        x: 0,
+        y: 0,
+        zoom: 2.5  // Zoom level for close-up (higher = more zoomed in)
+    };
+
     function startGame(shoeType) {
         selectedShoe = shoeType;
         gameActive = true;
@@ -322,13 +329,17 @@
         document.getElementById('start-screen').classList.add('hidden');
         document.getElementById('instructions').classList.remove('hidden');
 
+        // Initialize camera position
+        camera.x = startX + 40;
+        camera.y = groundY - 100;
+
         // Setup physics
         setupPhysics();
         createLegs();
 
-        // Update target distance
-        finishX = window.innerWidth - 150;
-        document.getElementById('target-distance').textContent = Math.floor((finishX - startX) / 10);
+        // Update target distance - scaled for actual physics world
+        finishX = startX + 2000; // Much longer distance in world coordinates
+        document.getElementById('target-distance').textContent = Math.floor((finishX - startX) / 20);
     }
 
     function setupPhysics() {
@@ -364,8 +375,8 @@
             }
         });
 
-        // Ground
-        ground = Bodies.rectangle(window.innerWidth / 2, groundY + 50, window.innerWidth * 2, 100, {
+        // Ground - extended for longer walk
+        ground = Bodies.rectangle(startX + 1000, groundY + 50, 4000, 100, {
             isStatic: true,
             friction: 0.8,
             label: 'ground'
@@ -381,8 +392,24 @@
         });
         Composite.add(engine.world, finishLine);
 
-        // Mouse control
+        // Mouse control with camera transformation support
         const mouse = Mouse.create(render.canvas);
+
+        // Update mouse position to account for camera
+        Events.on(engine, 'beforeUpdate', () => {
+            if (mouse.position && gameActive) {
+                const width = render.canvas.width;
+                const height = render.canvas.height;
+
+                // Convert screen coordinates to world coordinates
+                const worldX = (mouse.position.x - width / 2) / camera.zoom + camera.x;
+                const worldY = (mouse.position.y - height * 0.65) / camera.zoom + camera.y;
+
+                mouse.position.x = worldX;
+                mouse.position.y = worldY;
+            }
+        });
+
         mouseConstraint = MouseConstraint.create(engine, {
             mouse: mouse,
             constraint: {
@@ -502,8 +529,16 @@
 
         // Update distance display
         const maxX = Math.max(...legs.map(leg => leg.foot.position.x));
-        const distance = Math.floor((maxX - startX) / 10);
+        const distance = Math.floor((maxX - startX) / 20);
         document.getElementById('distance-display').textContent = Math.max(0, distance);
+
+        // Update camera to follow legs (close-up ground-level view)
+        const avgX = legs.reduce((sum, leg) => sum + leg.foot.position.x, 0) / legs.length;
+        const avgY = legs.reduce((sum, leg) => sum + leg.foot.position.y, 0) / legs.length;
+
+        // Smooth camera movement
+        camera.x += (avgX - camera.x) * 0.1;
+        camera.y += (avgY - camera.y) * 0.1;
 
         // Update hip anchors to follow feet horizontally
         legs.forEach(leg => {
@@ -616,65 +651,99 @@
         const width = canvas.width;
         const height = canvas.height;
 
+        // Clear canvas
+        ctx.clearRect(0, 0, width, height);
+
+        // Apply camera transformation for close-up view
+        ctx.save();
+
+        // Center camera on legs, focus on ground level
+        const offsetX = width / 2 - camera.x * camera.zoom;
+        const offsetY = height * 0.65 - camera.y * camera.zoom; // Focus on lower 2/3 of screen
+
+        ctx.translate(offsetX, offsetY);
+        ctx.scale(camera.zoom, camera.zoom);
+
+        // Calculate visible area in world coordinates
+        const viewLeft = camera.x - width / (2 * camera.zoom);
+        const viewRight = camera.x + width / (2 * camera.zoom);
+        const viewTop = camera.y - height / (2 * camera.zoom);
+        const viewBottom = camera.y + height / (2 * camera.zoom);
+
         // Background sky gradient
-        ctx.globalCompositeOperation = 'destination-over';
-        const skyGrad = ctx.createLinearGradient(0, 0, 0, height);
+        const skyGrad = ctx.createLinearGradient(viewLeft, 0, viewLeft, groundY);
         skyGrad.addColorStop(0, '#87CEEB');
         skyGrad.addColorStop(0.5, '#B0D4E3');
         skyGrad.addColorStop(1, '#5A5A5A');
         ctx.fillStyle = skyGrad;
-        ctx.fillRect(0, 0, width, height);
-        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillRect(viewLeft, 0, viewRight - viewLeft, groundY);
 
-        // Asphalt road
-        const roadGrad = ctx.createLinearGradient(0, groundY - 50, 0, height);
+        // Asphalt road with realistic gradient
+        const roadGrad = ctx.createLinearGradient(viewLeft, groundY - 50, viewLeft, groundY + 200);
         roadGrad.addColorStop(0, '#4a4a4a');
         roadGrad.addColorStop(0.5, '#3a3a3a');
         roadGrad.addColorStop(1, '#2a2a2a');
         ctx.fillStyle = roadGrad;
-        ctx.fillRect(0, groundY - 50, width, height);
+        ctx.fillRect(viewLeft, groundY - 50, viewRight - viewLeft, 300);
 
-        // Road texture (noise)
-        ctx.fillStyle = 'rgba(60, 60, 60, 0.3)';
-        for (let i = 0; i < 150; i++) {
-            const x = Math.random() * width;
-            const y = groundY + Math.random() * 100;
-            const size = Math.random() * 3;
+        // Road texture (noise) - more visible in close-up
+        ctx.fillStyle = 'rgba(60, 60, 60, 0.4)';
+        for (let i = 0; i < 300; i++) {
+            const x = viewLeft + Math.random() * (viewRight - viewLeft);
+            const y = groundY + Math.random() * 150;
+            const size = Math.random() * 4 + 1;
             ctx.fillRect(x, y, size, size);
         }
 
-        // Road markings
-        ctx.strokeStyle = 'rgba(220, 220, 220, 0.5)';
-        ctx.lineWidth = 4;
-        ctx.setLineDash([30, 20]);
+        // Asphalt cracks and details
+        ctx.strokeStyle = 'rgba(30, 30, 30, 0.6)';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 5; i++) {
+            const crackX = viewLeft + Math.random() * (viewRight - viewLeft);
+            ctx.beginPath();
+            ctx.moveTo(crackX, groundY);
+            ctx.lineTo(crackX + Math.random() * 40 - 20, groundY + 50 + Math.random() * 30);
+            ctx.stroke();
+        }
+
+        // Road markings (white lines)
+        ctx.strokeStyle = 'rgba(220, 220, 220, 0.6)';
+        ctx.lineWidth = 5;
+        ctx.setLineDash([40, 25]);
         ctx.beginPath();
-        ctx.moveTo(0, groundY + 30);
-        ctx.lineTo(width, groundY + 30);
+        ctx.moveTo(viewLeft, groundY + 30);
+        ctx.lineTo(viewRight, groundY + 30);
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Oil stains
-        ctx.fillStyle = 'rgba(20, 20, 30, 0.4)';
-        ctx.beginPath();
-        ctx.ellipse(400, groundY + 20, 50, 30, 0.3, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Finish line
-        ctx.fillStyle = 'rgba(0, 255, 100, 0.2)';
-        ctx.fillRect(finishX - 20, 0, 60, height);
-
-        ctx.fillStyle = '#000';
-        for (let y = 0; y < height; y += 40) {
-            ctx.fillRect(finishX - 10, y, 30, 20);
+        // Oil stains (multiple for realism)
+        ctx.fillStyle = 'rgba(20, 20, 30, 0.5)';
+        for (let i = 0; i < 3; i++) {
+            const stainX = viewLeft + (i + 1) * (viewRight - viewLeft) / 4;
+            ctx.beginPath();
+            ctx.ellipse(stainX, groundY + 20, 60, 35, Math.random() * 0.5, 0, Math.PI * 2);
+            ctx.fill();
         }
 
-        ctx.fillStyle = '#0f0';
-        ctx.font = 'bold 24px Arial';
-        ctx.textShadow = '2px 2px 4px rgba(0,0,0,0.8)';
-        ctx.fillText('FINISH', finishX - 30, groundY - 60);
+        // Finish line indicator
+        if (finishX > viewLeft && finishX < viewRight) {
+            ctx.fillStyle = 'rgba(0, 255, 100, 0.15)';
+            ctx.fillRect(finishX - 30, 0, 80, groundY + 200);
+
+            ctx.fillStyle = '#000';
+            for (let y = 0; y < groundY + 200; y += 50) {
+                ctx.fillRect(finishX - 15, y, 40, 25);
+            }
+
+            ctx.fillStyle = '#0f0';
+            ctx.font = 'bold 32px Arial';
+            ctx.fillText('FINISH', finishX - 50, groundY - 80);
+        }
 
         // Draw legs
         legs.forEach(leg => drawLeg(ctx, leg));
+
+        ctx.restore();
     }
 
     function drawLeg(ctx, leg) {
